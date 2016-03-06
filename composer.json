@@ -1,0 +1,13 @@
+{
+	"name": "chris-hamper/letsencrypt-cloudflare-hook",
+	"description": "",
+	"version": "1.0.0-dev",
+	"authors": [
+		{
+			"name": "Chris Hamper"
+		}
+	],
+	"require": {
+		"guzzlehttp/guzzle": "~6.0"
+	}
+}
