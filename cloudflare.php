@@ -6,6 +6,7 @@ require 'vendor/autoload.php';
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 
+
 $args = $_SERVER['argv'];
 $script = array_shift($args);
 $op = (string)array_shift($args);
@@ -23,7 +24,6 @@ if (empty($cloudflare_email = $data->cloudflare_email)) {
 
 $client = new Client([
   'base_uri' => 'https://api.cloudflare.com/client/v4/',
-
 ]);
 
 
@@ -63,7 +63,25 @@ function deploy_challenge($domain, $unused, $token_value) {
 
   $payload = json_decode($response->getBody());
   $zones = $payload->result;
-  $zone_id = $zones[0]->id; // FIXME - search through zones for match
+
+  $zone_id = NULL;
+  $subdomain = '';
+  foreach ($zones as $zone) {
+    if (($pos = strrpos($domain, $zone->name)) !== FALSE ) {
+      $zone_id = $zone->id;
+      if ($pos === 0) {
+        // Exact match found, so stop search
+        break;
+      }
+      else {
+        $subdomain = substr($domain, 0, $pos - 1);
+      }
+    }
+  }
+
+  if (!isset($zone_id)) {
+    throw new RuntimeException("No matching DNZ zone for '$domain'");
+  }
 
   // Create TXT record
   $response = $client->post("zones/$zone_id/dns_records", [
