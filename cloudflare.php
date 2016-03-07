@@ -51,6 +51,7 @@ function deploy_challenge($domain, $unused, $token_value) {
   global $cloudflare_email;
   echo "deploy_challenge($domain, $unused, $token_value):" . PHP_EOL;
 
+  // Find Zone ID of matching DNS zone
   $response = $client->get('zones', [
     'headers' => [
       'X-Auth-Key' => $cloudflare_api_key,
@@ -59,27 +60,25 @@ function deploy_challenge($domain, $unused, $token_value) {
   ]);
 
   echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
+
   $payload = json_decode($response->getBody());
+  $zones = $payload->result;
+  $zone_id = $zones[0]->id; // FIXME - search through zones for match
 
-  if ($payload->success) {
-    $zones = $payload->result;
+  // Create TXT record
+  $response = $client->post("zones/$zone_id/dns_records", [
+    'headers' => [
+      'X-Auth-Key' => $cloudflare_api_key,
+      'X-Auth-Email' => $cloudflare_email,
+    ],
+    'json' => [
+      'type' => 'TXT',
+      'name' => $zones[0]->name, // FIXME?
+      'content' => $token_value,
+    ],
+  ]);
 
-    $zone_id = $zones[0]->id;
-    $response = $client->post("zones/$zone_id/dns_records", [
-      'headers' => [
-        'X-Auth-Key' => $cloudflare_api_key,
-        'X-Auth-Email' => $cloudflare_email,
-      ],
-      'json' => [
-        'type' => 'TXT',
-        'name' => 'chrishamper.com', // FIXME - add subdomain?
-        'content' => $token_value,
-      ]
-    ]);
-
-    echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
-    echo $response->getBody() . PHP_EOL . PHP_EOL;
-  }
+  echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
 }
 
 function clean_challenge($domain, $unused, $token_value) {
