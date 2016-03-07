@@ -33,7 +33,7 @@ if (function_exists($op)) {
   }
   catch (RequestException $e) {
     echo "Request failed: " . $e->getMessage() . PHP_EOL;
-    echo "Response body: " . $e->getResponse()->getBody();
+    echo "Response body: " . $e->getResponse()->getBody() . PHP_EOL;
     exit(1);
   }
 }
@@ -84,6 +84,9 @@ function deploy_challenge($domain, $unused, $token_value) {
   }
 
   // Create TXT record
+  $record_name = '_acme-challenge' . (!empty($subdomain) ? ('.' . $subdomain) : '');
+  echo "Record name = '$record_name'" . PHP_EOL;
+
   $response = $client->post("zones/$zone_id/dns_records", [
     'headers' => [
       'X-Auth-Key' => $cloudflare_api_key,
@@ -91,7 +94,7 @@ function deploy_challenge($domain, $unused, $token_value) {
     ],
     'json' => [
       'type' => 'TXT',
-      'name' => $zones[0]->name, // FIXME?
+      'name' => $record_name,
       'content' => $token_value,
     ],
   ]);
