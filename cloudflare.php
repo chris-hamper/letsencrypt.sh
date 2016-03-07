@@ -15,11 +15,11 @@ $json = file_get_contents('credentials.json');
 $data = json_decode($json);
 
 if (empty($cloudflare_api_key = $data->cloudflare_api_key)) {
-  throw new RuntimeException("CloudFlare API Key not specified in data.json");
+  throw new RuntimeException("CloudFlare API Key not specified in credentials.json");
 }
 
 if (empty($cloudflare_email = $data->cloudflare_email)) {
-  throw new RuntimeException("CloudFlare Email address not specified in data.json");
+  throw new RuntimeException("CloudFlare Email address not specified in credentials.json");
 }
 
 $client = new Client([
