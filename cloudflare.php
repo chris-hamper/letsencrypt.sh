@@ -10,7 +10,7 @@ $args = $_SERVER['argv'];
 $script = array_shift($args);
 $op = (string)array_shift($args);
 
-$json = file_get_contents('data.json');
+$json = file_get_contents('credentials.json');
 $data = json_decode($json);
 
 if (empty($cloudflare_api_key = $data->cloudflare_api_key)) {
