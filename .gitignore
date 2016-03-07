@@ -6,3 +6,5 @@ hook.sh
 certs/*
 archive/*
 .acme-challenges/*
+vendor
+data.json
