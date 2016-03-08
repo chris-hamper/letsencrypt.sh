@@ -66,16 +66,12 @@ function deploy_challenge($domain, $unused, $token_value) {
 
   // Find Zone ID for domain
   $zone_id = NULL;
-  $subdomain = '';
   foreach ($zones as $zone) {
     if (($pos = strrpos($domain, $zone->name)) !== FALSE ) {
       $zone_id = $zone->id;
       if ($pos === 0) {
         // Exact match found, so stop search
         break;
-      }
-      else {
-        $subdomain = substr($domain, 0, $pos - 1);
       }
     }
   }
@@ -85,7 +81,7 @@ function deploy_challenge($domain, $unused, $token_value) {
   }
 
   // Create TXT record
-  $record_name = '_acme-challenge' . (!empty($subdomain) ? ('.' . $subdomain) : '');
+  $record_name = '_acme-challenge.' . $domain;
   echo "Record name = '$record_name'" . PHP_EOL;
 
   $response = $client->post("zones/$zone_id/dns_records", [
