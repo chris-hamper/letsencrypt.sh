@@ -64,6 +64,7 @@ function deploy_challenge($domain, $unused, $token_value) {
   $payload = json_decode($response->getBody());
   $zones = $payload->result;
 
+  // Find Zone ID for domain
   $zone_id = NULL;
   $subdomain = '';
   foreach ($zones as $zone) {
@@ -120,9 +121,27 @@ function clean_challenge($domain, $unused, $token_value) {
 
   $payload = json_decode($response->getBody());
   $zones = $payload->result;
-  $zone_id = $zones[0]->id; // FIXME - search through zones for match
+
+  // Find Zone ID for domain
+  $zone_id = NULL;
+  foreach ($zones as $zone) {
+    if (($pos = strrpos($domain, $zone->name)) !== FALSE ) {
+      $zone_id = $zone->id;
+      if ($pos === 0) {
+        // Exact match found, so stop search
+        break;
+      }
+    }
+  }
+
+  if (!isset($zone_id)) {
+    throw new RuntimeException("No matching DNZ zone for '$domain'");
+  }
 
   // Get matching TXT record ID
+  $record_name = '_acme-challenge.' . $domain;
+  echo "Record name = '$record_name'" . PHP_EOL;
+
   $response = $client->get("zones/$zone_id/dns_records", [
     'headers' => [
       'X-Auth-Key' => $cloudflare_api_key,
@@ -130,15 +149,20 @@ function clean_challenge($domain, $unused, $token_value) {
     ],
     'query' => [
       'type' => 'TXT',
-      'name' => $zones[0]->name, // FIXME?
+      'name' => $record_name,
       'content' => $token_value,
     ],
   ]);
 
   echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
+  echo $response->getBody() . PHP_EOL . PHP_EOL;
 
   $payload = json_decode($response->getBody());
   $records = $payload->result;
+  if (empty($records)) {
+    throw new RuntimeException("No matching TXT record found");
+  }
+
   $record_id = $records[0]->id;
 
   // Delete the TXT record
