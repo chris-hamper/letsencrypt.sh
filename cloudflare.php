@@ -77,12 +77,12 @@ function deploy_challenge($domain, $unused, $token_value) {
   }
 
   if (!isset($zone_id)) {
-    throw new RuntimeException("No matching DNZ zone for '$domain'");
+    throw new RuntimeException("No matching DNS zone for '$domain'");
   }
 
   // Create TXT record
   $record_name = '_acme-challenge.' . $domain;
-  echo "Record name = '$record_name'" . PHP_EOL;
+  echo "Creating TXT record '$record_name'" . PHP_EOL;
 
   $response = $client->post("zones/$zone_id/dns_records", [
     'headers' => [
@@ -97,6 +97,9 @@ function deploy_challenge($domain, $unused, $token_value) {
   ]);
 
   echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
+
+  echo "Deploy completed. Sleeping for 10 seconds..." . PHP_EOL;
+  sleep(10);
 }
 
 function clean_challenge($domain, $unused, $token_value) {
@@ -131,12 +134,12 @@ function clean_challenge($domain, $unused, $token_value) {
   }
 
   if (!isset($zone_id)) {
-    throw new RuntimeException("No matching DNZ zone for '$domain'");
+    throw new RuntimeException("No matching DNS zone for '$domain'");
   }
 
   // Get matching TXT record ID
   $record_name = '_acme-challenge.' . $domain;
-  echo "Record name = '$record_name'" . PHP_EOL;
+  echo "Removing TXT record '$record_name'" . PHP_EOL;
 
   $response = $client->get("zones/$zone_id/dns_records", [
     'headers' => [
@@ -151,7 +154,6 @@ function clean_challenge($domain, $unused, $token_value) {
   ]);
 
   echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
-  echo $response->getBody() . PHP_EOL . PHP_EOL;
 
   $payload = json_decode($response->getBody());
   $records = $payload->result;
