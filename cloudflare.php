@@ -2,8 +2,8 @@
 <?php
 
 require 'vendor/autoload.php';
+require_once 'CloudFlareApi.php';
 
-use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 
 
@@ -22,10 +22,7 @@ if (empty($cloudflare_email = $data->cloudflare_email)) {
   throw new RuntimeException("CloudFlare Email address not specified in credentials.json");
 }
 
-$client = new Client([
-  'base_uri' => 'https://api.cloudflare.com/client/v4/',
-]);
-
+$cloudFlare = new CloudFlareApi($cloudflare_email, $cloudflare_api_key);
 
 if (function_exists($op)) {
   try {
@@ -46,132 +43,31 @@ exit(0);
 
 
 function deploy_challenge($domain, $unused, $token_value) {
-  global $client;
-  global $cloudflare_api_key;
-  global $cloudflare_email;
+  global $cloudFlare;
   echo "deploy_challenge($domain, $unused, $token_value):" . PHP_EOL;
 
-  // Find Zone ID of matching DNS zone
-  $response = $client->get('zones', [
-    'headers' => [
-      'X-Auth-Key' => $cloudflare_api_key,
-      'X-Auth-Email' => $cloudflare_email,
-    ],
-  ]);
+  $zone_id = $cloudFlare->findZoneId($domain);
 
-  echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
-
-  $payload = json_decode($response->getBody());
-  $zones = $payload->result;
-
-  // Find Zone ID for domain
-  $zone_id = NULL;
-  foreach ($zones as $zone) {
-    if (($pos = strrpos($domain, $zone->name)) !== FALSE ) {
-      $zone_id = $zone->id;
-      if ($pos === 0) {
-        // Exact match found, so stop search
-        break;
-      }
-    }
-  }
-
-  if (!isset($zone_id)) {
-    throw new RuntimeException("No matching DNS zone for '$domain'");
-  }
-
-  // Create TXT record
   $record_name = '_acme-challenge.' . $domain;
   echo "Creating TXT record '$record_name'" . PHP_EOL;
 
-  $response = $client->post("zones/$zone_id/dns_records", [
-    'headers' => [
-      'X-Auth-Key' => $cloudflare_api_key,
-      'X-Auth-Email' => $cloudflare_email,
-    ],
-    'json' => [
-      'type' => 'TXT',
-      'name' => $record_name,
-      'content' => $token_value,
-    ],
-  ]);
-
-  echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
+  $cloudFlare->addDnsRecord($zone_id, $record_name, $token_value, 'TXT');
 
   echo "Deploy completed. Sleeping for 10 seconds..." . PHP_EOL;
   sleep(10);
 }
 
 function clean_challenge($domain, $unused, $token_value) {
-  global $client;
-  global $cloudflare_api_key;
-  global $cloudflare_email;
+  global $cloudFlare;
   echo "clean_challenge($domain, $unused, $token_value):" . PHP_EOL;
 
-  // Find Zone ID of matching DNS zone
-  $response = $client->get('zones', [
-    'headers' => [
-      'X-Auth-Key' => $cloudflare_api_key,
-      'X-Auth-Email' => $cloudflare_email,
-    ],
-  ]);
+  $zone_id = $cloudFlare->findZoneId($domain);
 
-  echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
-
-  $payload = json_decode($response->getBody());
-  $zones = $payload->result;
-
-  // Find Zone ID for domain
-  $zone_id = NULL;
-  foreach ($zones as $zone) {
-    if (($pos = strrpos($domain, $zone->name)) !== FALSE ) {
-      $zone_id = $zone->id;
-      if ($pos === 0) {
-        // Exact match found, so stop search
-        break;
-      }
-    }
-  }
-
-  if (!isset($zone_id)) {
-    throw new RuntimeException("No matching DNS zone for '$domain'");
-  }
-
-  // Get matching TXT record ID
   $record_name = '_acme-challenge.' . $domain;
-  echo "Removing TXT record '$record_name'" . PHP_EOL;
+  echo "Deleting TXT record '$record_name'" . PHP_EOL;
 
-  $response = $client->get("zones/$zone_id/dns_records", [
-    'headers' => [
-      'X-Auth-Key' => $cloudflare_api_key,
-      'X-Auth-Email' => $cloudflare_email,
-    ],
-    'query' => [
-      'type' => 'TXT',
-      'name' => $record_name,
-      'content' => $token_value,
-    ],
-  ]);
-
-  echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
-
-  $payload = json_decode($response->getBody());
-  $records = $payload->result;
-  if (empty($records)) {
-    throw new RuntimeException("No matching TXT record found");
-  }
-
-  $record_id = $records[0]->id;
-
-  // Delete the TXT record
-  $response = $client->delete("zones/$zone_id/dns_records/$record_id", [
-    'headers' => [
-      'X-Auth-Key' => $cloudflare_api_key,
-      'X-Auth-Email' => $cloudflare_email,
-    ],
-  ]);
-
-  echo $response->getStatusCode() . " " . $response->getReasonPhrase() . PHP_EOL;
+  $record_id = $cloudFlare->findDnsRecordId($zone_id, $record_name, $token_value, 'TXT');
+  $cloudFlare->deleteDnsRecord($zone_id, $record_id);
 }
 
 function deploy_cert($domain, $keyfile, $certfile, $fullchainfile, $chainfile) {
