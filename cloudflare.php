@@ -46,12 +46,12 @@ function deploy_challenge($domain, $unused, $token_value) {
   global $cloudFlare;
   echo "deploy_challenge($domain, $unused, $token_value):" . PHP_EOL;
 
-  $zone_id = $cloudFlare->findZoneId($domain);
+  $zone = $cloudFlare->getZone($domain);
 
   $record_name = '_acme-challenge.' . $domain;
   echo "Creating TXT record '$record_name'" . PHP_EOL;
 
-  $cloudFlare->addDnsRecord($zone_id, $record_name, $token_value, 'TXT');
+  $cloudFlare->addDnsRecord($zone, $record_name, $token_value, 'TXT');
 
   echo "Deploy completed. Sleeping for 10 seconds..." . PHP_EOL;
   sleep(10);
@@ -61,13 +61,20 @@ function clean_challenge($domain, $unused, $token_value) {
   global $cloudFlare;
   echo "clean_challenge($domain, $unused, $token_value):" . PHP_EOL;
 
-  $zone_id = $cloudFlare->findZoneId($domain);
+  $zone = $cloudFlare->getZone($domain);
+//  print_r($zone);
 
-  $record_name = '_acme-challenge.' . $domain;
+  if ($domain == $zone->name) {
+    $record_name = '_acme-challenge';
+  }
+  else {
+    $subdomain = str_replace('.' . $zone->name, '', $domain);
+    $record_name = '_acme-challenge.' . $subdomain;
+  }
   echo "Deleting TXT record '$record_name'" . PHP_EOL;
 
-  $record_id = $cloudFlare->findDnsRecordId($zone_id, $record_name, $token_value, 'TXT');
-  $cloudFlare->deleteDnsRecord($zone_id, $record_id);
+  $record = $cloudFlare->getDnsRecord($zone, $record_name, $token_value, 'TXT');
+  $cloudFlare->deleteDnsRecord($zone, $record);
 }
 
 function deploy_cert($domain, $keyfile, $certfile, $fullchainfile, $chainfile) {

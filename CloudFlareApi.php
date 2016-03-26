@@ -40,6 +40,7 @@ class CloudFlareApi {
   static protected function addAuthRequestHeaders($email, $apiKey) {
     return function (callable $handler) use ($email, $apiKey) {
       return function (RequestInterface $request, array $options) use ($handler, $email, $apiKey) {
+//        echo "Request: " . $request->getUri() . PHP_EOL;
         $request = $request->withHeader('X-Auth-Email', $email)
           ->withHeader('X-Auth-Key', $apiKey);
         return $handler($request, $options);
@@ -48,16 +49,16 @@ class CloudFlareApi {
   }
 
   /**
-   * Returns the CloudFlare DNS Zone ID for a domain name.
+   * Returns the CloudFlare DNS Zone for a domain name.
    *
    * @param $domain
    *
-   * @return string Zone ID if found,
-   *   else FALSE
+   * @return stdClass CloudFlare Zone
+   *
    * @throws \GuzzleHttp\Exception\RequestException on request failure
    * @throws RuntimeException if zone not found
    */
-  public function findZoneId($domain) {
+  public function getZone($domain) {
     if (empty($this->zones)) {
       // Get all DNS Zones
       $response = $this->client->get('zones');
@@ -68,10 +69,10 @@ class CloudFlareApi {
     }
 
     // Find Zone ID for domain
-    $zoneId = FALSE;
+    $zoneMatch = NULL;
     foreach ($this->zones as $zone) {
       if (($pos = strrpos($domain, $zone->name)) !== FALSE ) {
-        $zoneId = $zone->id;
+        $zoneMatch = $zone;
         if ($pos === 0) { // FIXME ?
           // Exact match found, so stop search
           break;
@@ -79,27 +80,26 @@ class CloudFlareApi {
       }
     }
 
-    if ($zoneId === FALSE) {
+    if ($zoneMatch === NULL) {
       throw new RuntimeException("No matching DNS zone for domain '$domain'");
     }
 
-    return $zoneId;
+    return $zoneMatch;
   }
 
   /**
    * Adds a DNS record to the given zone.
    *
-   * @param $zoneId
+   * @param $zone
    * @param $name
    * @param $content
    * @param $type
    * @param int $ttl
    *
-   * @return string CloudFlare DNS Record ID of the new record
-   *
+   * @return string CloudFlare DNS Record of the new record
    */
-  public function addDnsRecord($zoneId, $name, $content, $type, $ttl = 1) {
-    $response = $this->client->post("zones/$zoneId/dns_records", array(
+  public function addDnsRecord($zone, $name, $content, $type, $ttl = 1) {
+    $response = $this->client->post("zones/" . $zone->id . "/dns_records", array(
       'json' => array(
         'type' => $type,
         'name' => $name,
@@ -109,51 +109,48 @@ class CloudFlareApi {
     ));
 
     $payload = json_decode($response->getBody());
-    return $payload->result->id;
+    return $payload->result;
   }
 
   /**
    * Updates an existing DNS record.
    *
-   * @param $zoneId
-   * @param $recordId
-   * @param $changes
+   * @param $zone
+   * @param $record
    */
-  public function updateDnsRecord($zoneId, $recordId, $changes) {
-    $details = $this->getDnsRecordDetails($zoneId, $recordId);
-    array_merge($details, $changes);
-    unset($details['created_on']);
-    unset($details['modified_on']);
+  public function updateDnsRecord($zone, $record) {
+    unset($record->created_on);
+    unset($record->modified_on);
 
-    $this->client->put("zones/$zoneId/dns_records/$recordId", array(
-      'json' => $details,
+    $this->client->put("zones/" . $zone->id . "/dns_records/" . $record->id, array(
+      'json' => $record,
     ));
   }
 
   /**
    * Deletes an existing DNS record.
    *
-   * @param $zoneId
-   * @param $recordId
+   * @param $zone
+   * @param $record
    *
    * @throws \GuzzleHttp\Exception\RequestException
    */
-  public function deleteDnsRecord($zoneId, $recordId) {
-    $this->client->delete("zones/$zoneId/dns_records/$recordId");
+  public function deleteDnsRecord($zone, $record) {
+    $this->client->delete("zones/" . $zone->id . "/dns_records/" . $record->id);
   }
 
   /**
    * Returns the CloudFlare DNS record ID for the record matching the given
    * parameters.
    *
-   * @param $zoneId
+   * @param $zone
    * @param $name
    * @param null $content
    * @param null $type
    *
-   * @return string CloudFlare DNS record ID
+   * @return stdClass CloudFlare DNS record
    */
-  public function findDnsRecordId($zoneId, $name, $content = NULL, $type = NULL) {
+  public function getDnsRecord($zone, $name, $content = NULL, $type = NULL) {
     $query = array( 'name' => $name );
     if (!empty($content)) {
       $query['content'] = $content;
@@ -162,7 +159,7 @@ class CloudFlareApi {
       $query['type'] = $type;
     }
 
-    $response = $this->client->get("zones/$zoneId/dns_records", [
+    $response = $this->client->get("zones/" . $zone->id . "/dns_records", [
       'query' => $query,
     ]);
 
@@ -172,21 +169,7 @@ class CloudFlareApi {
       throw new RuntimeException("No matching DNS record found");
     }
 
-    return $records[0]->id;
-  }
-
-  /**
-   * Returns the CloudFlare DNS record details.
-   * @param $zoneId
-   * @param $recordId
-   *
-   * @return array
-   */
-  public function getDnsRecordDetails($zoneId, $recordId) {
-    $response = $this->client->get("zones/$zoneId/dns_records/$recordId");
-
-    $payload = json_decode($response->getBody());
-    return $payload->result;
+    return reset($records);
   }
 
 }
