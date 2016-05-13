@@ -62,15 +62,8 @@ function clean_challenge($domain, $unused, $token_value) {
   echo "clean_challenge($domain, $unused, $token_value):" . PHP_EOL;
 
   $zone = $cloudFlare->getZone($domain);
-//  print_r($zone);
 
-  if ($domain == $zone->name) {
-    $record_name = '_acme-challenge';
-  }
-  else {
-    $subdomain = str_replace('.' . $zone->name, '', $domain);
-    $record_name = '_acme-challenge.' . $subdomain;
-  }
+  $record_name = '_acme-challenge.' . $domain;
   echo "Deleting TXT record '$record_name'" . PHP_EOL;
 
   $record = $cloudFlare->getDnsRecord($zone, $record_name, $token_value, 'TXT');
