@@ -1,4 +1,4 @@
-private_key.pem
+*.pem
 private_key.json
 domains.txt
 config
